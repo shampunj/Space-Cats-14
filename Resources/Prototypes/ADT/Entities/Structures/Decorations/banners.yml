@@ -1,9 +1,0 @@
-- type: entity
-  id: ADTBannerTSF
-  parent: BannerBase
-  name: tsf banner
-  description: tsf banner.
-  components:
-  - type: Sprite
-    sprite: ADT/Structures/Decoration/banners.rsi
-    state: humanflag

@@ -1,7 +1,0 @@
-# Simple Station
-
-- type: entity
-  save: false
-  name: Урист МакПозитроник
-  parent: BaseMobIPC
-  id: MobIPC
