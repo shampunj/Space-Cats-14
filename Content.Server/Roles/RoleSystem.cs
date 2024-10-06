@@ -1,11 +1,4 @@
-﻿//start-backmen: antag
-using Content.Server.Backmen.Blob.Roles;
-using Content.Server.Backmen.EvilTwin;
-using Content.Server.Backmen.Flesh;
-using Content.Server.Backmen.Fugitive;
-using Content.Server.Backmen.Roles;
-using Content.Server.Backmen.Vampiric.Role;
-//end-backmen: antag
+using Content.Shared.Heretic;
 using Content.Shared.Roles;
 
 namespace Content.Server.Roles;
@@ -25,17 +18,9 @@ public sealed class RoleSystem : SharedRoleSystem
         SubscribeAntagEvents<SubvertedSiliconRoleComponent>();
         SubscribeAntagEvents<TraitorRoleComponent>();
         SubscribeAntagEvents<ZombieRoleComponent>();
-
-        //start-backmen: antag
-        SubscribeAntagEvents<BlobRoleComponent>();
-        SubscribeAntagEvents<EvilTwinRoleComponent>();
-        SubscribeAntagEvents<FugitiveRoleComponent>();
-        SubscribeAntagEvents<FleshCultistRoleComponent>();
-        SubscribeAntagEvents<VampireRoleComponent>();
-        SubscribeAntagEvents<ChangelingRoleComponent>();
-        SubscribeAntagEvents<SuperPsiRoleComponent>();
-        //end-backmen: antag
         SubscribeAntagEvents<ThiefRoleComponent>();
+        SubscribeAntagEvents<HereticRoleComponent>(); // goobstation - heretics
+        SubscribeAntagEvents<GhoulRoleComponent>(); // heretics
     }
 
     public string? MindGetBriefing(EntityUid? mindId)

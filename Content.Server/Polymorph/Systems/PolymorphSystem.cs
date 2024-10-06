@@ -121,7 +121,9 @@ public sealed partial class PolymorphSystem : EntitySystem
         if (!_proto.TryIndex(args.ProtoId, out var prototype) || args.Handled)
             return;
 
-        args.Handled = PolymorphEntity(ent, prototype.Configuration) != null;
+        PolymorphEntity(ent, prototype.Configuration);
+
+        args.Handled = true;
     }
 
     private void OnRevertPolymorphActionEvent(Entity<PolymorphedEntityComponent> ent,
@@ -337,6 +339,9 @@ public sealed partial class PolymorphSystem : EntitySystem
             parent);
         QueueDel(uid);
 
+        // goob edit
+        RaiseLocalEvent(parent, new PolymorphRevertEvent());
+
         return parent;
     }
 
@@ -359,13 +364,6 @@ public sealed partial class PolymorphSystem : EntitySystem
         EntityUid? actionId = default!;
         if (!_actions.AddAction(target, ref actionId, RevertPolymorphId, target))
             return;
-
-        // start-backmen: action fix
-        if (_actions.TryGetActionData(actionId, out var actionComponent))
-        {
-            actionComponent.UseDelay = polyProto.Configuration.Cooldown;
-        }
-        // end-backmen: action fix
 
         target.Comp.PolymorphActions.Add(id, actionId.Value);
 
@@ -390,3 +388,6 @@ public sealed partial class PolymorphSystem : EntitySystem
             _actions.RemoveAction(target, val);
     }
 }
+
+// goob edit
+public sealed partial class PolymorphRevertEvent : EntityEventArgs { }

@@ -1,6 +1,7 @@
 using System.Linq;
 using Content.Server.Actions;
 using Content.Server.Administration.Logs;
+using Content.Server.Heretic.EntitySystems;
 using Content.Server.PDA.Ringer;
 using Content.Server.Stack;
 using Content.Server.Store.Components;
@@ -8,6 +9,8 @@ using Content.Shared.Actions;
 using Content.Shared.Database;
 using Content.Shared.FixedPoint;
 using Content.Shared.Hands.EntitySystems;
+using Content.Shared.Heretic;
+using Content.Shared.Heretic.Prototypes;
 using Content.Shared.Mind;
 using Content.Shared.Store;
 using Content.Shared.Store.Components;
@@ -30,6 +33,10 @@ public sealed partial class StoreSystem
     [Dependency] private readonly SharedAudioSystem _audio = default!;
     [Dependency] private readonly StackSystem _stack = default!;
     [Dependency] private readonly UserInterfaceSystem _ui = default!;
+    [Dependency] private readonly IPrototypeManager _prototypeManager = default!;
+
+    // goobstation - heretics
+    [Dependency] private readonly HereticKnowledgeSystem _heretic = default!;
 
     private void InitializeUi()
     {
@@ -153,47 +160,43 @@ public sealed partial class StoreSystem
                 return;
         }
 
+        //check that we have enough money
+        var cost = listing.Cost;
+        foreach (var (currency, amount) in cost)
+        {
+            if (!component.Balance.TryGetValue(currency, out var balance) || balance < amount)
+            {
+                return;
+            }
+        }
+
         if (!IsOnStartingMap(uid, component))
             component.RefundAllowed = false;
 
-        if (!HandleBankTransaction(uid, component, msg, listing)) // backmen: currency
+        //subtract the cash
+        foreach (var (currency, amount) in cost)
         {
-            //check that we have enough money
-            foreach (var currency in listing.Cost)
-            {
-                if (!component.Balance.TryGetValue(currency.Key, out var balance) || balance < currency.Value)
-                {
-                    return;
-                }
-            }
+            component.Balance[currency] -= amount;
 
-            //subtract the cash
-            foreach (var (currency, value) in listing.Cost)
-            {
-                component.Balance[currency] -= value;
+            component.BalanceSpent.TryAdd(currency, FixedPoint2.Zero);
 
-                component.BalanceSpent.TryAdd(currency, FixedPoint2.Zero);
-
-                component.BalanceSpent[currency] += value;
-            }
-        // start-backmen: currency
+            component.BalanceSpent[currency] += amount;
         }
-        else
+
+        // goobstation - heretics
+        // i am too tired of making separate systems for knowledge adding
+        // and all that shit. i've had like 4 failed attempts
+        // so i'm just gonna shitcode my way out of my misery
+        if (listing.ProductHereticKnowledge != null)
         {
-            foreach (var (currency, value) in listing.Cost)
-            {
-                component.BalanceSpent.TryAdd(currency, FixedPoint2.Zero);
-                component.BalanceSpent[currency] += value;
-            }
+            if (TryComp<HereticComponent>(buyer, out var heretic))
+                _heretic.AddKnowledge(buyer, heretic, (ProtoId<HereticKnowledgePrototype>) listing.ProductHereticKnowledge);
         }
-         // end-backmen: currency
 
         //spawn entity
         if (listing.ProductEntity != null)
         {
             var product = Spawn(listing.ProductEntity, Transform(buyer).Coordinates);
-            var ev = new ItemPurchasedEvent(buyer);
-            RaiseLocalEvent(product, ref ev);
             _hands.PickupOrDrop(buyer, product);
 
             HandleRefundComp(uid, component, product);
@@ -273,12 +276,11 @@ public sealed partial class StoreSystem
         //log dat shit.
         _admin.Add(LogType.StorePurchase,
             LogImpact.Low,
-            $"{ToPrettyString(buyer):player} purchased listing \"{ListingLocalisationHelpers.GetLocalisedNameOrEntityName(listing, _proto)}\" from {ToPrettyString(uid)}");
+            $"{ToPrettyString(buyer):player} purchased listing \"{ListingLocalisationHelpers.GetLocalisedNameOrEntityName(listing, _prototypeManager)}\" from {ToPrettyString(uid)}");
 
         listing.PurchaseAmount++; //track how many times something has been purchased
         _audio.PlayEntity(component.BuySuccessSound, msg.Actor, uid); //cha-ching!
 
-        _PlayEject(uid); // backmen: currency
         var buyFinished = new StoreBuyFinishedEvent
         {
             PurchasedItem = listing,
@@ -298,9 +300,6 @@ public sealed partial class StoreSystem
     /// </remarks>
     private void OnRequestWithdraw(EntityUid uid, StoreComponent component, StoreRequestWithdrawMessage msg)
     {
-        if (msg.Amount <= 0)
-            return;
-
         //make sure we have enough cash in the bank and we actually support this currency
         if (!component.Balance.TryGetValue(msg.Currency, out var currentAmount) || currentAmount < msg.Amount)
             return;
@@ -324,8 +323,7 @@ public sealed partial class StoreSystem
             var cashId = proto.Cash[value];
             var amountToSpawn = (int) MathF.Floor((float) (amountRemaining / value));
             var ents = _stack.SpawnMultiple(cashId, amountToSpawn, coordinates);
-            if (ents.FirstOrDefault() is {} ent)
-                _hands.PickupOrDrop(buyer, ent);
+            _hands.PickupOrDrop(buyer, ents.First());
             amountRemaining -= value * amountToSpawn;
         }
 
